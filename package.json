@@ -1,0 +1,17 @@
+{
+  "name": "automation-demo",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Standalone demo CLI for wallet automation tokens",
+  "bin": {
+    "automation-demo": "./cli.mjs"
+  },
+  "scripts": {
+    "start": "node ./cli.mjs",
+    "check": "node --check ./cli.mjs"
+  },
+  "dependencies": {
+    "@noble/curves": "^2.0.1"
+  }
+}
