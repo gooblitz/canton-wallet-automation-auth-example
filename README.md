@@ -11,7 +11,7 @@ You can use it to:
 - inspect holdings in a human-readable way
 - query dApp ledger proxy endpoints including `/v2/updates`
 - stream events or poll for recent updates
-- send DevNet test tokens with local Ed25519 signing
+- send DevNet test tokens and TestNet `USDCx` with local Ed25519 signing
 
 ## What You Need
 
@@ -88,7 +88,10 @@ Use [`.env.example`](/Users/zabirhussain/Projects/canton-wallet-automation-auth-
 Example `.env`:
 
 ```dotenv
-WALLET_BASE_URL=https://lat-dn.cddev.site
+WALLET_NETWORK=testnet
+# Per-network overrides are optional. Set them only to override the selected network defaults.
+# WALLET_TESTNET_BASE_URL=https://lat-tn.cddev.site
+# WALLET_TESTNET_REGISTRY_URL=https://api.utilities.digitalasset-staging.com/api/token-standard/v0
 WALLET_TOKEN=your_automation_token_here
 WALLET_PARTY_ID=alice::1220...
 WALLET_PARTY_PRIVATE_KEY=base64_exported_private_key_here
@@ -101,12 +104,43 @@ Flags always override env vars.
 Shared flags:
 
 - `--base-url`
+- `--network`
+- `--registry-url`
+- `--utilities-url`
 - `--token`
 - `--party-id`
 - `--party-key`
 - `--json`
 - `--yes`
 - `--env-file`
+
+Use the per-network env vars when you want persistent endpoint overrides:
+
+- `WALLET_DEVNET_BASE_URL`
+- `WALLET_TESTNET_BASE_URL`
+- `WALLET_DEVNET_REGISTRY_URL`
+- `WALLET_TESTNET_REGISTRY_URL`
+
+The legacy global overrides `WALLET_BASE_URL` and `WALLET_REGISTRY_URL` still work for custom deployments. If a global value exactly matches another built-in network default, the selected network default wins, which prevents an old DevNet `.env` from pinning TestNet to `lat-dn`.
+
+`WALLET_NETWORK` currently supports:
+
+- `devnet` for existing DevNet test-token sends
+- `testnet` for TestNet `USDCx`
+
+The default wallet backend host follows the selected network:
+
+- `devnet`: `https://lat-dn.cddev.site`
+- `testnet`: `https://lat-tn.cddev.site`
+
+For TestNet `USDCx`, the CLI uses the TestNet wallet host and Digital Asset staging token-standard utilities endpoint by default:
+
+```dotenv
+WALLET_NETWORK=testnet
+# Optional overrides:
+# WALLET_TESTNET_BASE_URL=https://lat-tn.cddev.site
+# WALLET_TESTNET_REGISTRY_URL=https://api.utilities.digitalasset-staging.com/api/token-standard/v0
+```
 
 `--party-key` accepts:
 
@@ -270,22 +304,28 @@ node cli.mjs events
 
 Stop with `Ctrl+C`.
 
-## Send A DevNet Test Token
+## Send Tokens
 
-`send` is intentionally narrow. It currently supports these DevNet test tokens:
+`send` is intentionally narrow. It currently supports:
+
+- DevNet test tokens
+- TestNet `USDCx`
+
+Supported DevNet test tokens:
 
 - `TestBTC`
 - `TestUSD`
 - `TestUSDy`
 - `TestCDC`
 
-It does not send Canton Coin or arbitrary token-standard assets.
+It does not send Canton Coin, MainNet `USDCx`, or arbitrary token-standard assets.
 
 ### Friendly defaults
 
 The `send` command is designed to be easier to drive from a terminal:
 
-- `--token-id` defaults to `TestUSD`
+- `--token-id` defaults to `TestUSD` on `devnet`
+- `--token-id` defaults to `USDCx` on `testnet`
 - if you run in a TTY, the CLI prompts for missing `--to-party`, `--amount`, and `--party-key`
 - human-readable output is the default
 - use `--json` if you want the raw payload
@@ -298,7 +338,35 @@ node cli.mjs send \
   --amount 1.00
 ```
 
-Because `TestUSD` is the default token, `--token-id` is optional.
+On `devnet`, `TestUSD` is the default token, so `--token-id` is optional.
+
+### TestNet USDCx send
+
+Set `WALLET_NETWORK=testnet`. Unless overridden, the wallet backend defaults to `https://lat-tn.cddev.site`.
+
+```bash
+node cli.mjs send \
+  --network testnet \
+  --token-id USDCx \
+  --to-party bob::1220... \
+  --amount 1.0000000000
+```
+
+The CLI uses the TestNet USDCx registrar:
+
+```text
+decentralized-usdc-interchain-rep::122049e2af8a725bd19759320fc83c638e7718973eac189d8f201309c512d1ffec61
+```
+
+If the recipient has active USDCx auto-receive/preapproval, the registry transfer factory can complete the send as a one-step direct transfer. If not, it creates a two-step `TransferOffer`; the receiver must accept it in the wallet UI or another tool.
+
+To inspect what happened after a send:
+
+```bash
+node cli.mjs update-by-id --last-send --verbose
+```
+
+Direct/preapproved sends create an `ExecutedTransfer` without a pending `TransferOffer`. Two-step sends create a `TransferOffer`; after the receiver accepts, a later update archives that offer and creates an `ExecutedTransfer`.
 
 ### Fully explicit send
 
